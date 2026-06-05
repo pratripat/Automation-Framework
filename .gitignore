@@ -1,0 +1,31 @@
+# Build output
+target/
+*.class
+
+# Package files
+*.jar
+*.war
+*.ear
+
+# Logs
+*.log
+**/functional-test-logs/
+
+# IDEs and Editors
+.idea/
+*.iml
+.vscode/
+.eclipse/
+.settings/
+.classpath
+.project
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Documentation / Reports
+*.pptx
+!Architecture_Chart.png
