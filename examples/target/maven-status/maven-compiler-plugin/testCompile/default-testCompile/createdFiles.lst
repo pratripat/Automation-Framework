@@ -1,0 +1,5 @@
+com/banking/tests/FundsTransferIT.class
+com/banking/tests/suites/AccountInquirySuite.class
+com/banking/tests/stubs/StubPayloads.class
+com/banking/tests/AccountInquiryIT.class
+com/banking/tests/suites/FundsTransferSuite.class
