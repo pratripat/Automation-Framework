@@ -33,8 +33,12 @@ jobs:
           mvn versions:set -DnewVersion=${TAG_VERSION}
 
       # Compile and package the project into a JAR file
+      # We add the --projects flag to build the BOM module first, followed by the rest of the reactor
+      # This ensures local resolution works flawlessly during version bumps
       - name: Build with Maven
-        run: mvn clean install -DskipTests
+        run: |
+          mvn clean install -N -DskipTests
+          mvn clean install -DskipTests
 
       # Upload the compiled JAR to GitHub Packages Maven Registry
       - name: Deploy to GitHub Packages Registry
