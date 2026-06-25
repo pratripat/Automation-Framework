@@ -16,29 +16,31 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Integration test suite covering the Funds Transfer flow through the
- * banking platform's channel service.
+ * Integration test suite covering the Funds Transfer flow through the banking
+ * platform's channel service.
  *
- * <p>Architecture under test:</p>
+ * <p>
+ * Architecture under test:</p>
  * <pre>
  *   Test ─HTTP→ channel-service ─HTTP→ core-banking-mock (WireMock)
  * </pre>
  *
- * <p>This suite demonstrates:</p>
+ * <p>
+ * This suite demonstrates:</p>
  * <ul>
- *   <li>Happy path: successful transfer</li>
- *   <li>Business error: insufficient funds (CBS returns 51)</li>
- *   <li>Idempotency: duplicate request detection</li>
- *   <li>Resilience: CBS timeout handling</li>
- *   <li>Validation: missing mandatory field rejection</li>
- *   <li>Dependency chaining: FT-003 depends on FT-001 passing</li>
+ * <li>Happy path: successful transfer</li>
+ * <li>Business error: insufficient funds (CBS returns 51)</li>
+ * <li>Idempotency: duplicate request detection</li>
+ * <li>Resilience: CBS timeout handling</li>
+ * <li>Validation: missing mandatory field rejection</li>
+ * <li>Dependency chaining: FT-003 depends on FT-001 passing</li>
  * </ul>
  */
 public class FundsTransferSuite extends AbstractTestSuiteDefinition {
 
     // Component aliases — used to look up URLs and mock servers in TestContext
     public static final String CHANNEL_SERVICE = "channel-service";
-    public static final String CBS_MOCK        = "core-banking-mock";
+    public static final String CBS_MOCK = "core-banking-mock";
 
     public FundsTransferSuite() {
         // ── Components ──────────────────────────────────────────────────────
@@ -60,9 +62,9 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
 
         // ── Suite properties ────────────────────────────────────────────────
         addProperty("env", "integration");
-        addProperty("debitAccount",  "1234567890");
+        addProperty("debitAccount", "1234567890");
         addProperty("creditAccount", "0987654321");
-        addProperty("currency",      "INR");
+        addProperty("currency", "INR");
 
         // ── Test cases ───────────────────────────────────────────────────────
         addTest(TestCaseDefinition.builder()
@@ -83,7 +85,7 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
                 .id("FT-003")
                 .name("Idempotency — duplicate request uses same txn reference")
                 .tags(List.of("regression", "idempotency"))
-                .dependsOn(List.of("FT-001"))  // Requires FT-001 to have passed
+                .dependsOn(List.of("FT-001")) // Requires FT-001 to have passed
                 .testCase(this::testIdempotentTransfer)
                 .build());
 
@@ -115,7 +117,6 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
     }
 
     // ── Lifecycle hooks ──────────────────────────────────────────────────────
-
     @Override
     public void beforeEach(TestContext ctx, TestCaseDefinition testCase) {
         // Reset WireMock between tests so stubs from one test don't bleed into the next
@@ -124,7 +125,6 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
     }
 
     // ── Test implementations ─────────────────────────────────────────────────
-
     /**
      * FT-001: Happy path. CBS returns a success payload, channel service should
      * return HTTP 200 with a txnReferenceNumber in the body.
@@ -147,8 +147,8 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
                 ctx.getProperty("creditAccount"),
                 10000.00, ctx.getProperty("currency"), UUID.randomUUID().toString());
 
-        HttpTestClient.TestHttpResponse response =
-                ctx.getHttpClient().post(url, requestBody);
+        HttpTestClient.TestHttpResponse response
+                = ctx.getHttpClient().post(url, requestBody);
 
         // Assert: HTTP layer
         assertThat(response.code())
@@ -177,8 +177,8 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
     }
 
     /**
-     * FT-002: CBS returns responseCode=51 (insufficient funds).
-     * Channel service must translate this to HTTP 422 with an error body.
+     * FT-002: CBS returns responseCode=51 (insufficient funds). Channel service
+     * must translate this to HTTP 422 with an error body.
      */
     private TestResult testInsufficientFunds(TestContext ctx) throws Exception {
         ctx.getMockServer(CBS_MOCK).stubFor(
@@ -190,8 +190,8 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
         String requestBody = buildTransferRequest("1234567890", "0987654321",
                 999999.00, "INR", UUID.randomUUID().toString());
 
-        HttpTestClient.TestHttpResponse response =
-                ctx.getHttpClient().post(url, requestBody);
+        HttpTestClient.TestHttpResponse response
+                = ctx.getHttpClient().post(url, requestBody);
 
         assertThat(response.code())
                 .as("Channel must return 422 for insufficient funds")
@@ -211,9 +211,9 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
     }
 
     /**
-     * FT-003: Idempotency. Sending the same idempotency key twice should result in
-     * the same txnReferenceNumber and no duplicate CBS call.
-     * Depends on FT-001 to confirm the channel service is working.
+     * FT-003: Idempotency. Sending the same idempotency key twice should result
+     * in the same txnReferenceNumber and no duplicate CBS call. Depends on
+     * FT-001 to confirm the channel service is working.
      */
     private TestResult testIdempotentTransfer(TestContext ctx) throws Exception {
         String idempotencyKey = UUID.randomUUID().toString();
@@ -256,8 +256,8 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
     }
 
     /**
-     * FT-004: CBS takes too long to respond. Channel service must return
-     * HTTP 504 within its configured timeout.
+     * FT-004: CBS takes too long to respond. Channel service must return HTTP
+     * 504 within its configured timeout.
      */
     private TestResult testCbsTimeout(TestContext ctx) throws Exception {
         // Stub CBS to delay for 30 seconds (longer than channel's CBS timeout)
@@ -322,8 +322,8 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
     }
 
     /**
-     * FT-006: Amount exceeds per-transaction limit.
-     * Channel service should reject before reaching CBS.
+     * FT-006: Amount exceeds per-transaction limit. Channel service should
+     * reject before reaching CBS.
      */
     private TestResult testOverLimitAmount(TestContext ctx) throws Exception {
         String url = ctx.getServiceUrl(CHANNEL_SERVICE) + "/api/v1/funds-transfer";
@@ -347,10 +347,9 @@ public class FundsTransferSuite extends AbstractTestSuiteDefinition {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
     private static String buildTransferRequest(String debitAcc, String creditAcc,
-                                                double amount, String currency,
-                                                String idempotencyKey) {
+            double amount, String currency,
+            String idempotencyKey) {
         return """
                 {
                   "debitAccountNumber": "%s",

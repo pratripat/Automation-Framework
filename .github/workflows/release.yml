@@ -1,0 +1,64 @@
+name: Publish Release and Snapshot JARs
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      # Case A: If it's a version tag (v1.x.x), strip '-SNAPSHOT' from the pom.xml
+      - name: Set Release Version from Tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          mvn versions:set -DnewVersion=${TAG_VERSION}
+
+      # Compile and package the project into a JAR file
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      # Upload the compiled JAR to GitHub Packages Maven Registry
+      - name: Deploy to GitHub Packages Registry
+        run: mvn deploy -DskipTests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Case B: If it's a tag (v1.0.0), upload the clean Release JAR to the Release asset list
+      - name: Upload Release JAR to GitHub Release Assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/*.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Case C: If it's a normal push to main, create/update a rolling "snapshot" release tag and attach the snapshot JAR
+      - name: Upload Snapshot JAR to GitHub Pre-Release Assets
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-snapshot
+          name: "Latest Development Snapshot"
+          prerelease: true
+          files: target/*.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
