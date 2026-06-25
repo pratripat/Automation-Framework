@@ -1,7 +1,11 @@
-# Banking Platform Integration Test Framework
+# Automation Framework — Functional Test Framework
 
-A generic, container-based integration/functional testing framework built on
-[Testcontainers](https://testcontainers.com) for Spring Boot microservice platforms.
+A generic, production-grade functional testing framework built on
+[Testcontainers](https://testcontainers.com) for Spring Boot microservice platforms
+deployed on Tomcat. Manages the full Docker lifecycle so test authors focus purely
+on writing assertions, not infrastructure.
+
+> **Latest release:** v1.0.12 · [GitHub Packages](https://github.com/pratripat/Automation-Framework/packages)
 
 ---
 
@@ -36,18 +40,48 @@ A generic, container-based integration/functional testing framework built on
 
 ## Quick Start
 
-### 1. Add the dependency
+### 1. Add GitHub Packages as a repository
+
+Add this to your project's `pom.xml`:
+
+```xml
+<repositories>
+    <repository>
+        <id>github</id>
+        <name>GitHub Packages</name>
+        <url>https://maven.pkg.github.com/pratripat/Automation-Framework</url>
+    </repository>
+</repositories>
+```
+
+Add this to your `~/.m2/settings.xml` (create it if it doesn't exist):
+
+```xml
+<settings>
+    <servers>
+        <server>
+            <id>github</id>
+            <username>YOUR_GITHUB_USERNAME</username>
+            <password>YOUR_GITHUB_PERSONAL_ACCESS_TOKEN</password>
+        </server>
+    </servers>
+</settings>
+```
+
+> The token needs `read:packages` scope. Generate one at GitHub → Settings → Developer Settings → Personal Access Tokens.
+
+### 2. Add the dependency
 
 ```xml
 <dependency>
     <groupId>com.banking</groupId>
     <artifactId>framework-core</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.12</version>
     <scope>test</scope>
 </dependency>
 ```
 
-### 2. Implement a test suite
+### 3. Implement a test suite
 
 ```java
 public class MyServiceSuite extends AbstractTestSuiteDefinition {
@@ -56,12 +90,12 @@ public class MyServiceSuite extends AbstractTestSuiteDefinition {
         // Declare components
         addComponent(BankingMockBuilder.forCBS("cbs-mock")
             .withGlobalLatency(30, MILLISECONDS)
+            .exposeUrlAs("CBS_BASE_URL")
             .build());
 
         addComponent(TomcatServiceComponent.builder("my-service", "banking/my-service:latest")
             .port(8080)
             .dependsOn("cbs-mock")
-            .env("CBS_BASE_URL", "http://cbs-mock:8080/cbs/operations")
             .build());
 
         // Register tests
@@ -83,7 +117,7 @@ public class MyServiceSuite extends AbstractTestSuiteDefinition {
 }
 ```
 
-### 3. Create the JUnit 5 runner
+### 4. Create the JUnit 5 runner
 
 ```java
 @ExtendWith(IntegrationTestExtension.class)
@@ -104,7 +138,7 @@ class MyServiceIT {
 }
 ```
 
-### 4. Run
+### 5. Run
 
 ```bash
 mvn verify -pl my-test-module
@@ -129,14 +163,15 @@ TomcatServiceComponent.builder("channel-service", "banking/channel:latest")
 ```
 
 ### MockDownstreamComponent (via BankingMockBuilder)
-WireMock-backed CBS mock with domain-specific helpers.
+WireMock-backed CBS mock with domain-specific helpers. Automatically resolves
+the Docker-host-reachable address so service containers can reach the in-process
+WireMock server.
 
 ```java
 BankingMockBuilder.forCBS("flexcube-mock")
     .withGlobalLatency(50, MILLISECONDS)
     .withFaultRate(0.02)   // 2% random 503s
-    .withSuccessfulFundsTransfer()
-    .withAccountInquiry("ACC001", "Test User", "INR", 50000.0)
+    .exposeUrlAs("CBS_BASE_URL")
     .build();
 ```
 
@@ -160,7 +195,6 @@ GenericInfraComponent.builder("postgres", "postgres:15-alpine")
 ## Reporting
 
 ### Console (default)
-
 Always-on. Produces a color-coded summary table and full failure details with stack
 traces and container log snapshots.
 
@@ -173,48 +207,30 @@ ReportConfig.builder()
     .s3Bucket("my-test-results")
     .s3Prefix("banking-platform/integration/")
     .s3Region("ap-south-1")
-    // For MinIO or LocalStack:
-    .s3EndpointOverride("http://localhost:9000")
+    .s3EndpointOverride("http://localhost:9000") // For MinIO or LocalStack
     .build();
 ```
 
-Uploads to: `s3://bucket/prefix/run-{uuid}/`
+Uploads to `s3://bucket/prefix/run-{uuid}/`:
 - `report.json` — machine-readable results
 - `report.html` — human-readable HTML with pass/fail table
 - `logs/{alias}.log` — container log snapshots from failing tests
-
-Or use the annotation shorthand on the IT class:
-
-```java
-@IntegrationTestExtension.ReportToS3(
-    bucket = "my-test-results",
-    prefix = "banking/integration/"
-)
-```
 
 ---
 
 ## TestContext API
 
-Inside any `TestCase` lambda:
-
 ```java
 TestCase myTest = ctx -> {
-    // Resolve service URL
     String url = ctx.getServiceUrl("channel-service");
 
-    // Access WireMock for stub registration and verification
     WireMockServer mock = ctx.getMockServer("cbs-mock");
     mock.stubFor(post(urlEqualTo("/cbs/ops/transfer")).willReturn(okJson("...")));
 
-    // Fire HTTP calls
     var response = ctx.getHttpClient().post(url + "/api/v1/transfer", body);
-    var json     = response.bodyAsJson();
 
-    // Record metadata for the HTML report
-    ctx.recordMetadata("txnRef", json.path("txnReferenceNumber").asText());
+    ctx.recordMetadata("txnRef", response.bodyAsJson().path("txnReferenceNumber").asText());
 
-    // Assert
     assertThat(response.code()).isEqualTo(200);
 
     return TestResult.builder().status(TestStatus.PASSED).build();
@@ -230,8 +246,7 @@ public class MySuite extends AbstractTestSuiteDefinition {
 
     @Override
     public void beforeAll(TestContext ctx) throws Exception {
-        // Run once after all components are healthy, before any tests
-        // Seed test data, warm up caches, etc.
+        // Runs once after all components are healthy, before any tests
     }
 
     @Override
@@ -241,14 +256,10 @@ public class MySuite extends AbstractTestSuiteDefinition {
     }
 
     @Override
-    public void afterEach(TestContext ctx, TestResult result) throws Exception {
-        // Log or handle individual test results
-    }
+    public void afterEach(TestContext ctx, TestResult result) throws Exception {}
 
     @Override
-    public void afterAll(TestContext ctx, List<TestResult> results) throws Exception {
-        // Final assertions on aggregate state
-    }
+    public void afterAll(TestContext ctx, List<TestResult> results) throws Exception {}
 }
 ```
 
@@ -256,14 +267,11 @@ public class MySuite extends AbstractTestSuiteDefinition {
 
 ## Test Dependencies
 
-Tests can declare dependencies on other tests. A test is auto-skipped if any
-dependency didn't pass:
-
 ```java
 addTest(TestCaseDefinition.builder()
     .id("FT-003")
     .name("Idempotency check")
-    .dependsOn(List.of("FT-001"))  // Skipped if FT-001 didn't pass
+    .dependsOn(List.of("FT-001"))  // Auto-skipped if FT-001 didn't pass
     .testCase(this::testIdempotency)
     .build());
 ```
@@ -273,48 +281,35 @@ addTest(TestCaseDefinition.builder()
 ## Running Multiple Suites (Programmatic)
 
 ```java
-public static void main(String[] args) {
-    int exitCode = SuiteRunner.builder()
-        .addSuite(new FundsTransferSuite())
-        .addSuite(new AccountInquirySuite())
-        .reportConfig(ReportConfig.withS3("my-bucket", "banking/integration/"))
-        .failFast(false)
-        .build()
-        .run();
+int exitCode = SuiteRunner.builder()
+    .addSuite(new FundsTransferSuite())
+    .addSuite(new AccountInquirySuite())
+    .reportConfig(ReportConfig.withS3("my-bucket", "banking/integration/"))
+    .failFast(false)
+    .build()
+    .run();
 
-    System.exit(exitCode);
-}
+System.exit(exitCode);
 ```
 
 ---
 
 ## Playwright / JS Integration
 
-To run Playwright tests against the deployed environment:
-
 ```java
-public class E2ESuite extends AbstractTestSuiteDefinition {
+addTest("E2E-001", "Playwright login flow", ctx -> {
+    List<TestResult> results = NodeTestRunner.builder()
+        .command("npx", "playwright", "test", "--reporter=junit")
+        .junitOutputPath("playwright-report/junit.xml")
+        .envPrefix("TEST_")
+        .build()
+        .run(ctx, Path.of("web-console-tests"));
 
-    public E2ESuite() {
-        addComponent(TomcatServiceComponent.builder("web-app", "banking/web:latest")
-            .port(3000).build());
-
-        addTest("web-console-001", "Playwright login flow", ctx -> {
-            // NodeTestRunner injects TEST_WEB_APP_URL as env var to the Node process
-            List<TestResult> results = NodeTestRunner.builder()
-                .command("npx", "playwright", "test", "--reporter=junit")
-                .junitOutputPath("playwright-report/junit.xml")
-                .envPrefix("TEST_")
-                .build()
-                .run(ctx, Path.of("web-console-tests"));
-
-            boolean allPassed = results.stream().allMatch(TestResult::isPassed);
-            return TestResult.builder()
-                .status(allPassed ? TestStatus.PASSED : TestStatus.FAILED)
-                .build();
-        });
-    }
-}
+    boolean allPassed = results.stream().allMatch(TestResult::isPassed);
+    return TestResult.builder()
+        .status(allPassed ? TestStatus.PASSED : TestStatus.FAILED)
+        .build();
+});
 ```
 
 ---
@@ -358,7 +353,7 @@ functional-test-framework/
 │
 ├── framework-bom/                     ← Bill of Materials
 │
-└── examples/              ← reference implementation
+└── examples/                          ← reference implementation
     └── src/test/java/com/banking/tests/
         ├── suites/
         │   ├── FundsTransferSuite.java
@@ -388,3 +383,9 @@ functional-test-framework/
 | `AWS_REGION` | AWS region for S3 reporter | SDK default |
 | `AWS_ACCESS_KEY_ID` | AWS credentials | SDK default chain |
 | `AWS_SECRET_ACCESS_KEY` | AWS credentials | SDK default chain |
+
+---
+
+## Used By
+
+- [CBS-Functional-Tests](https://github.com/pratripat/CBS-Functional-Tests) — Functional test suites for a four-service banking platform demonstrating real-world usage of this framework.
