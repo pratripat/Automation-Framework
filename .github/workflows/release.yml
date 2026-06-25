@@ -33,15 +33,11 @@ jobs:
           echo "Setting version to $TAG_VERSION"
           mvn versions:set -DnewVersion=$TAG_VERSION -DgenerateBackupPoms=false
 
-      # Step 1: Install the BOM into local cache first so the parent pom can resolve it
-      - name: Install framework-bom
-        run: mvn clean install -f framework-bom/pom.xml -DskipTests -B
-
-      # Step 2: Now build the full project — BOM is in local cache so it resolves
+      # Step 1: Build
       - name: Build and install all modules
         run: mvn clean install -DskipTests -B
 
-      # Step 3: Deploy everything to GitHub Packages
+      # Step 2: Deploy everything to GitHub Packages
       - name: Deploy to GitHub Packages
         run: mvn deploy -DskipTests -B
         env:
