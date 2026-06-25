@@ -32,6 +32,8 @@ jobs:
           TAG_VERSION=${GITHUB_REF#refs/tags/v}
           echo "Setting version to $TAG_VERSION"
           mvn versions:set -DnewVersion=$TAG_VERSION -DgenerateBackupPoms=false
+          mvn versions:set -DnewVersion=$TAG_VERSION -DgenerateBackupPoms=false -f framework-bom/pom.xml
+          mvn versions:set-property -Dproperty=framework.core.version -DnewVersion=$TAG_VERSION -DgenerateBackupPoms=false -f framework-bom/pom.xml
 
       # Step 1: Build
       - name: Build and install all modules
