@@ -9,6 +9,11 @@
             <name>GitHub Apache Maven Packages</name>
             <url>https://maven.pkg.github.com/pratripat/Automation-Framework</url>
         </repository>
+        <snapshotRepository>
+            <id>github</id>
+            <name>GitHub Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/pratripat/Automation-Framework</url>
+        </snapshotRepository>
     </distributionManagement>
 
     <modelVersion>4.0.0</modelVersion>
