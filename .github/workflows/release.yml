@@ -25,7 +25,7 @@ jobs:
           distribution: temurin
           cache: maven
 
-      # On a version tag (v1.2.3), strip -SNAPSHOT and set the release version
+      # On a version tag (v1.2.3), set the release version across all modules
       - name: Set release version from tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -33,17 +33,21 @@ jobs:
           echo "Setting version to $TAG_VERSION"
           mvn versions:set -DnewVersion=$TAG_VERSION -DgenerateBackupPoms=false
 
-      # Build everything — parent pom handles BOM + framework-core in the right order
-      - name: Build and install
+      # Step 1: Install the BOM into local cache first so the parent pom can resolve it
+      - name: Install framework-bom
+        run: mvn clean install -f framework-bom/pom.xml -DskipTests -B
+
+      # Step 2: Now build the full project — BOM is in local cache so it resolves
+      - name: Build and install all modules
         run: mvn clean install -DskipTests -B
 
-      # Deploy to GitHub Packages (both snapshot and release)
+      # Step 3: Deploy everything to GitHub Packages
       - name: Deploy to GitHub Packages
         run: mvn deploy -DskipTests -B
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # On a version tag — upload the framework-core JAR as a release asset
+      # On a version tag — attach the JAR to the GitHub Release
       - name: Upload JAR to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -54,7 +58,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # On push to main — create/update a rolling snapshot pre-release
+      # On push to main — update the rolling snapshot pre-release
       - name: Upload snapshot JAR to pre-release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
