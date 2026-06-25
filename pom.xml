@@ -7,12 +7,12 @@
         <repository>
             <id>github</id>
             <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME</url>
+            <url>https://maven.pkg.github.com/pratripat/Automation-Framework</url>
         </repository>
         <snapshotRepository>
             <id>github</id>
             <name>GitHub Packages Snapshots</name>
-            <url>https://maven.pkg.github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME</url>
+            <url>https://maven.pkg.github.com/pratripat/Automation-Framework</url>
         </snapshotRepository>
     </distributionManagement>
 
